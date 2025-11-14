@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <title>NEXAI Web Wallet - Demo</title>
+  <title>NEXAI Web Wallet - Demo (LocalStorage)</title>
   <style>
     body { font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; }
     .card { border: 1px solid #ccc; padding: 16px; border-radius: 12px; margin-bottom: 20px; }
@@ -12,7 +12,7 @@
   </style>
 </head>
 <body>
-  <h1>NEXAI Web Wallet - Demo</h1>
+  <h1>NEXAI Web Wallet - Demo (LocalStorage)</h1>
 
   <div class="card">
     <h2>สร้างกระเป๋าใหม่</h2>
@@ -61,9 +61,32 @@ function randHex(n) {
   return out;
 }
 
+// ===== LocalStorage Functions =====
+function saveWallet() { if(wallet) localStorage.setItem('wallet', JSON.stringify(wallet)); }
+function loadWalletFromStorage() {
+  const w = localStorage.getItem('wallet');
+  if(w){
+    wallet = JSON.parse(w);
+    document.getElementById('walletInfo').innerHTML = `<b>Address:</b> ${wallet.address}<br><b>Seed:</b> ${wallet.seed}`;
+    document.getElementById('addrBox').innerText = wallet.address;
+  }
+}
+
+function saveChain() { localStorage.setItem('chain', JSON.stringify(chain)); }
+function loadChainFromStorage() {
+  const c = localStorage.getItem('chain');
+  if(c) chain = JSON.parse(c);
+  updateLogs();
+}
+
+window.onload = function() {
+  loadWalletFromStorage();
+  loadChainFromStorage();
+}
+
+// ===== Wallet Functions =====
 function createWallet() {
   const w = { network: "NEXAI-NXI", address: randHex(40), seed: randHex(64) };
   wallet = w;
   document.getElementById('createResult').innerHTML = `<p><b>Address:</b> ${w.address}</p><p><b>Seed:</b> ${w.seed}</p>`;
-  document.getElementById('addrBox').innerText = w.address;
-  if (!chain.balances[w.address]) chain.balances[
+  document.getElementById('addrBox').innerTe
