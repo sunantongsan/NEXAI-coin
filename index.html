@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>NEXAI Web Wallet</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; }
+    .card { border: 1px solid #ccc; padding: 16px; border-radius: 12px; margin-bottom: 20px; }
+    input, button { padding: 10px; width: 100%; margin: 5px 0; }
+    button { cursor: pointer; }
+    .log { white-space: pre-wrap; background: #f7f7f7; padding: 10px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>NEXAI Web Wallet</h1>
+
+  <div class="card">
+    <h2>สร้างกระเป๋าใหม่</h2>
+    <button onclick="createWallet()">สร้างกระเป๋า</button>
+    <div id="createResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>โหลดกระเป๋า (JSON)</h2>
+    <input id="loadJson" type="file" accept="application/json" />
+    <button onclick="loadWallet()">โหลดกระเป๋า</button>
+    <div id="walletInfo"></div>
+  </div>
+
+  <div class="card">
+    <h2>รับเหรียญ (Address)</h2>
+    <div id="addrBox">กรุณาโหลดหรือสร้างกระเป๋าก่อน</div>
+  </div>
+
+  <div class="card">
+    <h2>ส่งเหรียญ</h2>
+    <input id="toAddress" placeholder="Address ผู้รับ" />
+    <input id="amount" placeholder="จำนวน NXI" type="number" />
+    <button onclick="sendCoin()">ส่งเหรียญ</button>
+    <div id="sendResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>ประวัติธุรกรรม</h2>
+    <div class="log" id="logBox">— ไม่มีข้อมูล —</div>
+  </div>
+
+<script>
+let wallet = null;
+let chain = { balances: {}, logs: [] };
+
+function randHex(n) {
+  const hex = '0123456789abcdef';
+  let out = '';
+  for (let i = 0; i < n; i++) out += hex[Math.floor(Math.random()*16)];
+  return out;
+}
+
+function createWallet() {
+  const w = { network: "NEXAI-NXI", address: randHex(40), seed: randHex(64) };
+  wallet = w;
+  document.getElementById('createResult').innerHTML = `<p><b>Address:</b> ${w.address}</p><p><b>Seed:</b> ${w.seed}</p>`;
+  document.getElementById('addrBox').innerText = w.address;
+  if (!chain.balances[w.address]) chain.balances[w.address] = 0;
+}
+
+function loadWallet() {
+  const file = document.getElementById('loadJson').files[0];
+  if (!file) return alert("กรุณาเลือกไฟล์ .json");
+  const reader = new FileReader();
+  reader.onload = e => {
+    wallet = JSON.parse(e.target.result);
+    document.getElementById('walletInfo').innerHTML = `<b>Address:</b> ${wallet.address}<br><b>Seed:</b> ${wallet.seed}`;
+    document.getElementById('addrBox').innerText = wallet.address;
+    if (!chain.balances[wallet.address]) chain.balances[wallet.address] = 0;
+  };
+  reader.readAsText(file);
+}
+
+function sendCoin() {
+  if (!wallet) return alert("กรุณาโหลดหรือสร้างกระเป๋าก่อน");
+  const to = document.getElementById('toAddress').value.trim();
+  const amount = parseFloat(document.getElementById('amount').value);
+  if (!to || isNaN(amount) || amount <= 0) return alert("ข้อมูลไม่ถูกต้อง");
+  const from = wallet.address;
+  if (!chain.balances[from]) chain.balances[from] = 0;
+  if (!chain.balances[to]) chain.balances[to] = 0;
+  if (chain.balances[from] < amount) return alert("ยอดเงินไม่พอ");
+  chain.balances[from] -= amount;
+  chain.balances[to] += amount;
+  const tx = { id: randHex(32), from, to, amount, time: new Date().toLocaleString() };
+  chain.logs.push(tx);
+  document.getElementById('sendResult').innerHTML = `<p>TX ID: ${tx.id}</p>`;
+  updateLogs();
+}
+
+function updateLogs() {
+  const log = chain.logs.map(l => `TX ${l.id}\nจาก: ${l.from}\nไป: ${l.to}\nจำนวน: ${l.amount} NXI\nเวลา: ${l.time}\n`).join("\n---------------------\n\n");
+  document.getElementById('logBox').innerText = log || "— ไม่มีข้อมูล —";
+}
+</script>
+
+</body>
+</html>
