@@ -4,33 +4,46 @@
 <meta charset="UTF-8">
 <title>NEXAI Web Wallet</title>
 <style>
-body { font-family: sans-serif; max-width: 600px; margin:auto; padding:20px; }
-input, button{padding:10px;width:100%; margin:5px 0;} button{cursor:pointer;}
+body { font-family: sans-serif; max-width: 700px; margin:auto; padding:20px; background-color:#e0f0ff; }
+input, button, select{padding:10px;width:100%; margin:5px 0; font-size:16px;}
+button{cursor:pointer; background-color:#007bff; color:white; border:none; border-radius:5px;}
+button:hover{background-color:#0056b3;}
+h1,h2{color:#003366;}
+.card{background:white; padding:15px; margin-bottom:15px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1);}
+#txHistory{max-height:200px; overflow:auto; border:1px solid #ccc; padding:5px;}
 </style>
 </head>
 <body>
+
 <h1>NEXAI Web Wallet</h1>
 
-<div>
-<h2>สร้าง Wallet</h2>
-<button onclick="createWallet()">สร้าง</button>
+<div class="card">
+<h2>Wallet</h2>
+<button onclick="createWallet()">สร้าง Wallet ใหม่</button>
+<input id="seedLoad" placeholder="ใส่ Seed เพื่อโหลด Wallet"/>
+<button onclick="loadWallet()">โหลด Wallet</button>
 <div id="walletInfo"></div>
 </div>
 
-<div>
+<div class="card">
+<h2>Balance</h2>
+<p id="balance">0 NXI</p>
+</div>
+
+<div class="card">
 <h2>ส่งเหรียญ</h2>
 <input id="toAddr" placeholder="Address ผู้รับ"/>
 <input id="amount" placeholder="จำนวน NXI" type="number"/>
 <button onclick="send()">ส่ง</button>
 </div>
 
-<div>
-<h2>Balance</h2>
-<p id="balance">0 NXI</p>
+<div class="card">
+<h2>ประวัติธุรกรรม</h2>
+<div id="txHistory"></div>
 </div>
 
 <script>
-const API = "http://localhost:3000";
+const API = "http://localhost:3000"; // เปลี่ยนเป็น URL server ของคุณ
 let wallet=null;
 let coinId=null;
 
@@ -38,14 +51,37 @@ async function createWallet(){
     const res = await fetch(API+'/createWallet',{method:'POST'});
     const data = await res.json();
     wallet={address:data.address,seed:data.seed};
-    document.getElementById('walletInfo').innerText=`Address: ${data.address}\nSeed: ${data.seed}`;
-    coinId = data.seed; // ใช้ seed เป็น ID ของเหรียญ AI
+    coinId = data.seed;
+    document.getElementById('walletInfo').innerText = `Address: ${data.address}\nSeed: ${data.seed}`;
     await fetch(API+'/coinOnline',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({coinId,owner:wallet.address})
     });
     updateBalance();
+    loadTxHistory();
+}
+
+async function loadWallet(){
+    const seed = document.getElementById('seedLoad').value.trim();
+    if(!seed) return alert("กรุณาใส่ seed");
+    const address = sha256(seed).slice(0,40);
+    wallet = {address, seed};
+    coinId = seed;
+    document.getElementById('walletInfo').innerText = `Address: ${address}\nSeed: ${seed}`;
+    await fetch(API+'/coinOnline',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({coinId,owner:wallet.address})
+    });
+    updateBalance();
+    loadTxHistory();
+}
+
+// ใช้ SHA256 ง่าย ๆ แบบ JS
+function sha256(str){
+    return crypto.subtle.digest("SHA-256", new TextEncoder().encode(str))
+        .then(buf=>Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''));
 }
 
 async function updateBalance(){
@@ -56,7 +92,7 @@ async function updateBalance(){
 }
 
 async function send(){
-    const to = document.getElementById('toAddr').value;
+    const to = document.getElementById('toAddr').value.trim();
     const amount = parseFloat(document.getElementById('amount').value);
     if(!wallet || !to || isNaN(amount)) return alert("ข้อมูลไม่ถูกต้อง");
     const res = await fetch(API+'/send',{
@@ -67,7 +103,25 @@ async function send(){
     const data = await res.json();
     if(data.error) return alert(data.error);
     updateBalance();
+    loadTxHistory();
     alert("ส่งเรียบร้อย");
+}
+
+async function loadTxHistory(){
+    if(!wallet) return;
+    const res = await fetch(API+'/chain');
+    const chain = await res.json();
+    const txDiv = document.getElementById('txHistory');
+    txDiv.innerHTML = "";
+    chain.forEach(block=>{
+        block.transactions.forEach(tx=>{
+            if(tx.from===wallet.address || tx.to===wallet.address){
+                const p = document.createElement('p');
+                p.innerText = `${tx.time}: ${tx.from} -> ${tx.to} : ${tx.amount} NXI (Gas ${tx.gas})`;
+                txDiv.appendChild(p);
+            }
+        });
+    });
 }
 </script>
 </body>
