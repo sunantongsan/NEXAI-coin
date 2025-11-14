@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -10,26 +9,16 @@ app.use(bodyParser.json());
 
 let blockchain = [];
 let pendingTx = [];
-let wallets = {}; // address -> balance
-let coinsOnline = {}; // coinId -> ownerAddress
+let wallets = {};
+let coinsOnline = {};
 
 const GAS_FEE = 0.01;
-const MIN_WITNESS = 1; // จำนวนเหรียญ AI ที่ต้องยืนยัน
+const MIN_WITNESS = 1;
 
-// =================== Functions =====================
-function sha256(data){
-    return crypto.createHash('sha256').update(data).digest('hex');
-}
+function sha256(data){ return crypto.createHash('sha256').update(data).digest('hex'); }
 
 function createGenesisBlock(){
-    const block = {
-        index: 0,
-        timestamp: new Date().toISOString(),
-        transactions: [],
-        previousHash: "0",
-        hash: "",
-        witnesses: []
-    };
+    const block = { index: 0, timestamp: new Date().toISOString(), transactions: [], previousHash: "0", hash: "", witnesses: [] };
     block.hash = sha256(JSON.stringify(block));
     blockchain.push(block);
 }
@@ -46,7 +35,6 @@ function createBlock(transactions, witnesses){
     blockchain.push(block);
 }
 
-// =================== API ===========================
 app.post('/createWallet', (req,res)=>{
     const seed = crypto.randomBytes(32).toString('hex');
     const address = sha256(seed).slice(0,40);
@@ -72,7 +60,6 @@ app.post('/send',(req,res)=>{
     wallets[from] -= amount+GAS_FEE;
     wallets[to] = (wallets[to]||0) + amount;
 
-    // แจกค่าแก๊สให้ coins online
     const onlineCoins = Object.keys(coinsOnline);
     const share = GAS_FEE / onlineCoins.length;
     onlineCoins.forEach(cid=>{
@@ -83,7 +70,6 @@ app.post('/send',(req,res)=>{
     const tx = {id: sha256(Date.now()+from), from,to,amount,gas:GAS_FEE,time:new Date().toISOString()};
     pendingTx.push(tx);
 
-    // ตรวจสอบ witness
     if(onlineCoins.length>=MIN_WITNESS){
         createBlock(pendingTx,onlineCoins.slice());
         pendingTx = [];
@@ -92,22 +78,9 @@ app.post('/send',(req,res)=>{
     res.json({status:"sent",tx});
 });
 
-// รายงาน Blockchain
-app.get('/chain',(req,res)=>{
-    res.json(blockchain);
-});
-
-// รายงาน online coins
-app.get('/online',(req,res)=>{
-    res.json(coinsOnline);
-});
-
-// register coin online
-app.post('/coinOnline',(req,res)=>{
-    const {coinId, owner} = req.body;
-    coinsOnline[coinId] = owner;
-    res.json({status:"online"});
-});
+app.get('/chain',(req,res)=>{ res.json(blockchain); });
+app.get('/online',(req,res)=>{ res.json(coinsOnline); });
+app.post('/coinOnline',(req,res)=>{ const {coinId, owner} = req.body; coinsOnline[coinId]=owner; res.json({status:"online"}); });
 
 app.listen(3000,()=>console.log("NXI Blockchain Engine running on port 3000"));
 createGenesisBlock();
