@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <title>NEXAI Web Wallet - Demo (LocalStorage + Seed + Balance + Mint to Wallet)</title>
+  <title>NEXAI Web Wallet - Demo (ระบบการเงินสมบูรณ์)</title>
   <style>
     body { font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; }
     .card { border: 1px solid #ccc; padding: 16px; border-radius: 12px; margin-bottom: 20px; }
@@ -12,7 +12,7 @@
   </style>
 </head>
 <body>
-  <h1>NEXAI Web Wallet - Demo</h1>
+  <h1>NEXAI Web Wallet - Demo (ระบบการเงินสมบูรณ์)</h1>
 
   <div class="card">
     <h2>สร้างกระเป๋าใหม่</h2>
@@ -103,12 +103,7 @@ function loadWalletFromSeed() {
   const seed = document.getElementById('seedInput').value.trim();
   if(!seed) return alert("กรุณาใส่ Seed");
 
-  wallet = {
-    network: "NEXAI-NXI",
-    seed: seed,
-    address: seedToAddress(seed)
-  };
-
+  wallet = { network: "NEXAI-NXI", seed: seed, address: seedToAddress(seed) };
   document.getElementById('walletInfo').innerHTML = `<b>Address:</b> ${wallet.address}<br><b>Seed:</b> ${wallet.seed}`;
   document.getElementById('addrBox').innerText = wallet.address;
   if(!chain.balances[wallet.address]) chain.balances[wallet.address] = 0;
@@ -129,22 +124,28 @@ function seedToAddress(seed) {
 }
 
 function sendCoin() {
-  if (!wallet) return alert("กรุณาโหลดหรือสร้างกระเป๋าก่อน");
+  if (!wallet) return alert("กรุณาสร้างหรือโหลดกระเป๋าก่อน");
   const to = document.getElementById('toAddress').value.trim();
   const amount = parseFloat(document.getElementById('amount').value);
   if (!to || isNaN(amount) || amount <= 0) return alert("ข้อมูลไม่ถูกต้อง");
+
   const from = wallet.address;
   if (!chain.balances[from]) chain.balances[from] = 0;
   if (!chain.balances[to]) chain.balances[to] = 0;
+
   if (chain.balances[from] < amount) return alert("ยอดเงินไม่พอ");
+
   chain.balances[from] -= amount;
   chain.balances[to] += amount;
+
   const tx = { id: randHex(32), from, to, amount, time: new Date().toLocaleString() };
   chain.logs.push(tx);
-  document.getElementById('sendResult').innerHTML = `<p>TX ID: ${tx.id}</p>`;
+
   updateLogs();
   saveChain();
   updateBalance();
+
+  alert(`ส่ง ${amount} NXI จาก ${from} ไป ${to} เรียบร้อยแล้ว`);
 }
 
 function mintDemo() {
@@ -155,15 +156,9 @@ function mintDemo() {
   if (!chain.balances[userAddress]) chain.balances[userAddress] = 0;
   chain.balances[userAddress] += amount;
 
-  const tx = {
-    id: randHex(32),
-    from: "SYSTEM",
-    to: userAddress,
-    amount: amount,
-    time: new Date().toLocaleString()
-  };
-
+  const tx = { id: randHex(32), from: "SYSTEM", to: userAddress, amount, time: new Date().toLocaleString() };
   chain.logs.push(tx);
+
   updateLogs();
   saveChain();
   updateBalance();
@@ -177,11 +172,11 @@ function updateLogs() {
 }
 
 function updateBalance() {
-    if(wallet && chain.balances[wallet.address] !== undefined) {
-        const balance = chain.balances[wallet.address];
-        document.getElementById('balanceDisplay').innerText = `ยอดเหรียญ: ${balance} NXI`;
-        document.getElementById('valueDisplay').innerText = `มูลค่า: ${balance * NXI_PRICE} บาท`;
-    }
+  if(wallet && chain.balances[wallet.address] !== undefined) {
+    const balance = chain.balances[wallet.address];
+    document.getElementById('balanceDisplay').innerText = `ยอดเหรียญ: ${balance} NXI`;
+    document.getElementById('valueDisplay').innerText = `มูลค่า: ${balance * NXI_PRICE} บาท`;
+  }
 }
 </script>
 
