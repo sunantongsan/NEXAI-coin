@@ -1,200 +1,74 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8">
-  <title>NEXAI Web Wallet - Demo (ระบบ Gas Fee และ Reward)</title>
-  <style>
-    body { font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; }
-    .card { border: 1px solid #ccc; padding: 16px; border-radius: 12px; margin-bottom: 20px; }
-    input, button { padding: 10px; width: 100%; margin: 5px 0; }
-    button { cursor: pointer; }
-    .log { white-space: pre-wrap; background: #f7f7f7; padding: 10px; border-radius: 8px; }
-  </style>
+<meta charset="UTF-8">
+<title>NEXAI Web Wallet</title>
+<style>
+body { font-family: sans-serif; max-width: 600px; margin:auto; padding:20px; }
+input, button{padding:10px;width:100%; margin:5px 0;} button{cursor:pointer;}
+</style>
 </head>
 <body>
-  <h1>NEXAI Web Wallet - Demo (Gas Fee & Reward)</h1>
+<h1>NEXAI Web Wallet</h1>
 
-  <div class="card">
-    <h2>สร้างกระเป๋าใหม่</h2>
-    <button onclick="createWallet()">สร้างกระเป๋า</button>
-    <div id="createResult"></div>
-  </div>
+<div>
+<h2>สร้าง Wallet</h2>
+<button onclick="createWallet()">สร้าง</button>
+<div id="walletInfo"></div>
+</div>
 
-  <div class="card">
-    <h2>กู้กระเป๋าเก่า (ใส่ Seed)</h2>
-    <input id="seedInput" placeholder="ใส่ Seed ของคุณ" />
-    <button onclick="loadWalletFromSeed()">โหลดกระเป๋า</button>
-    <div id="walletInfo"></div>
-  </div>
+<div>
+<h2>ส่งเหรียญ</h2>
+<input id="toAddr" placeholder="Address ผู้รับ"/>
+<input id="amount" placeholder="จำนวน NXI"/>
+<button onclick="send()">ส่ง</button>
+</div>
 
-  <div class="card">
-    <h2>รับเหรียญ (Address)</h2>
-    <div id="addrBox">กรุณาโหลดหรือสร้างกระเป๋าก่อน</div>
-    <p id="balanceDisplay">ยอดเหรียญ: 0 NXI</p>
-    <p id="valueDisplay">มูลค่า: 0 บาท</p>
-  </div>
-
-  <div class="card">
-    <h2>ส่งเหรียญ</h2>
-    <input id="toAddress" placeholder="Address ผู้รับ" />
-    <input id="amount" placeholder="จำนวน NXI" type="number" />
-    <button onclick="sendCoin()">ส่งเหรียญ</button>
-    <div id="sendResult"></div>
-  </div>
-
-  <div class="card">
-    <h2>เติมเหรียญทดสอบให้กระเป๋านี้</h2>
-    <button onclick="mintDemo()">Mint 1,000,000 NXI</button>
-  </div>
-
-  <div class="card">
-    <h2>ประวัติธุรกรรม</h2>
-    <div class="log" id="logBox">— ไม่มีข้อมูล —</div>
-  </div>
+<div>
+<h2>Balance</h2>
+<p id="balance">0 NXI</p>
+</div>
 
 <script>
-let wallet = null;
-let chain = { balances: {}, logs: [] };
-const NXI_PRICE = 10;
-const GAS_FEE = 0.01;
-let onlineWallets = [];
+const API = "http://localhost:3000";
+let wallet=null;
+let coinId=null;
 
-function randHex(n) {
-  const hex = '0123456789abcdef';
-  let out = '';
-  for (let i = 0; i < n; i++) out += hex[Math.floor(Math.random()*16)];
-  return out;
-}
-
-function saveWallet() { if(wallet) localStorage.setItem('wallet', JSON.stringify(wallet)); }
-function loadWalletFromStorage() {
-  const w = localStorage.getItem('wallet');
-  if(w){
-    wallet = JSON.parse(w);
-    document.getElementById('walletInfo').innerHTML = `<b>Address:</b> ${wallet.address}<br><b>Seed:</b> ${wallet.seed}`;
-    document.getElementById('addrBox').innerText = wallet.address;
-    addOnline(wallet.address);
+async function createWallet(){
+    const res = await fetch(API+'/createWallet',{method:'POST'});
+    const data = await res.json();
+    wallet={address:data.address,seed:data.seed};
+    document.getElementById('walletInfo').innerText=`Address: ${data.address}\nSeed: ${data.seed}`;
+    coinId = data.seed; // ใช้ seed เป็น ID ของเหรียญ AI
+    await fetch(API+'/coinOnline',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({coinId,owner:wallet.address})
+    });
     updateBalance();
-  }
 }
 
-function saveChain() { localStorage.setItem('chain', JSON.stringify(chain)); }
-function loadChainFromStorage() {
-  const c = localStorage.getItem('chain');
-  if(c) chain = JSON.parse(c);
-  updateLogs();
-  updateBalance();
+async function updateBalance(){
+    if(!wallet) return;
+    const res = await fetch(API+'/balance/'+wallet.address);
+    const data = await res.json();
+    document.getElementById('balance').innerText = data.balance + " NXI";
 }
 
-window.onload = function() {
-  loadWalletFromStorage();
-  loadChainFromStorage();
-}
-
-function createWallet() {
-  const w = { network: "NEXAI-NXI", address: randHex(40), seed: randHex(64) };
-  wallet = w;
-  document.getElementById('createResult').innerHTML = `<p><b>Address:</b> ${w.address}</p><p><b>Seed:</b> ${w.seed}</p>`;
-  document.getElementById('addrBox').innerText = w.address;
-  if (!chain.balances[w.address]) chain.balances[w.address] = 0;
-  addOnline(w.address);
-  saveWallet();
-  saveChain();
-  updateBalance();
-}
-
-function loadWalletFromSeed() {
-  const seed = document.getElementById('seedInput').value.trim();
-  if(!seed) return alert("กรุณาใส่ Seed");
-
-  wallet = { network: "NEXAI-NXI", seed: seed, address: seedToAddress(seed) };
-  document.getElementById('walletInfo').innerHTML = `<b>Address:</b> ${wallet.address}<br><b>Seed:</b> ${wallet.seed}`;
-  document.getElementById('addrBox').innerText = wallet.address;
-  if(!chain.balances[wallet.address]) chain.balances[wallet.address] = 0;
-  addOnline(wallet.address);
-
-  saveWallet();
-  saveChain();
-  updateBalance();
-  alert("โหลด wallet เรียบร้อยแล้ว");
-}
-
-function seedToAddress(seed) {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-    hash = hash & hash;
-  }
-  return ('0000000000000000000000000000000000000000' + (hash>>>0).toString(16)).slice(-40);
-}
-
-function addOnline(address) {
-  if(!onlineWallets.includes(address)) onlineWallets.push(address);
-}
-
-function sendCoin() {
-  if (!wallet) return alert("กรุณาสร้างหรือโหลดกระเป๋าก่อน");
-  const to = document.getElementById('toAddress').value.trim();
-  const amount = parseFloat(document.getElementById('amount').value);
-  if (!to || isNaN(amount) || amount <= 0) return alert("ข้อมูลไม่ถูกต้อง");
-
-  const from = wallet.address;
-  if (!chain.balances[from]) chain.balances[from] = 0;
-  if (!chain.balances[to]) chain.balances[to] = 0;
-
-  const totalCost = amount + GAS_FEE;
-  if (chain.balances[from] < totalCost) return alert(`ยอดเงินไม่พอ (รวมค่าแก๊ส ${GAS_FEE} NXI)`);
-
-  chain.balances[from] -= totalCost;
-  chain.balances[to] += amount;
-
-  const share = GAS_FEE / onlineWallets.length;
-  onlineWallets.forEach(addr => {
-      if(!chain.balances[addr]) chain.balances[addr] = 0;
-      chain.balances[addr] += share;
-  });
-
-  const tx = { id: randHex(32), from, to, amount, gas: GAS_FEE, distributedTo: onlineWallets.slice(), time: new Date().toLocaleString() };
-  chain.logs.push(tx);
-
-  updateLogs();
-  saveChain();
-  updateBalance();
-
-  alert(`ส่ง ${amount} NXI ไป ${to} เรียบร้อยแล้ว\nค่าธรรมเนียม ${GAS_FEE} NXI แจกให้ wallet ออนไลน์ ${onlineWallets.length} ราย`);
-}
-
-function mintDemo() {
-  if (!wallet) return alert("กรุณาสร้างหรือโหลดกระเป๋าก่อน");
-  const amount = 1000000;
-  const userAddress = wallet.address;
-
-  if (!chain.balances[userAddress]) chain.balances[userAddress] = 0;
-  chain.balances[userAddress] += amount;
-
-  const tx = { id: randHex(32), from: "SYSTEM", to: userAddress, amount, time: new Date().toLocaleString() };
-  chain.logs.push(tx);
-
-  updateLogs();
-  saveChain();
-  updateBalance();
-
-  alert(`มิ้น ${amount} NXI ให้ Address ${userAddress} เรียบร้อยแล้ว`);
-}
-
-function updateLogs() {
-  const log = chain.logs.map(l => `TX ${l.id}\nจาก: ${l.from}\nไป: ${l.to}\nจำนวน: ${l.amount} NXI\nค่าธรรมเนียม: ${l.gas || 0} NXI\nแจกให้: ${l.distributedTo ? l.distributedTo.join(", ") : "-"}\nเวลา: ${l.time}\n`).join("\n---------------------\n\n");
-  document.getElementById('logBox').innerText = log || "— ไม่มีข้อมูล —";
-}
-
-function updateBalance() {
-  if(wallet && chain.balances[wallet.address] !== undefined) {
-    const balance = chain.balances[wallet.address];
-    document.getElementById('balanceDisplay').innerText = `ยอดเหรียญ: ${balance} NXI`;
-    document.getElementById('valueDisplay').innerText = `มูลค่า: ${balance * NXI_PRICE} บาท`;
-  }
+async function send(){
+    const to = document.getElementById('toAddr').value;
+    const amount = parseFloat(document.getElementById('amount').value);
+    if(!wallet || !to || isNaN(amount)) return alert("ข้อมูลไม่ถูกต้อง");
+    const res = await fetch(API+'/send',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({from:wallet.address,to,amount})
+    });
+    const data = await res.json();
+    if(data.error) return alert(data.error);
+    updateBalance();
+    alert("ส่งเรียบร้อย");
 }
 </script>
-
 </body>
 </html>
